@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"github.com/GannettDigital/go-newrelic-plugin/memcached"
+	//	"github.com/GannettDigital/go-newrelic-plugin/memcached"
+	"../memcached"
 	status "github.com/GannettDigital/goStateModule"
 	"github.com/spf13/cobra"
 )

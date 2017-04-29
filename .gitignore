@@ -36,3 +36,4 @@ coverage/
 main
 .project
 .settings
+exports.sh

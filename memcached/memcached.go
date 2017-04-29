@@ -3,8 +3,8 @@ package memcached
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/GannettDigital/go-newrelic-plugin/helpers"
 	"github.com/Sirupsen/logrus"
 	"net"
 	"os"
@@ -48,36 +48,11 @@ type PluginData struct {
 	Events          []EventData              `json:"events"`
 }
 
-// OutputJSON takes an object and prints it as a JSON string to the stdout.
-// If the pretty attribute is set to true, the JSON will be idented for easy reading.
-func OutputJSON(data interface{}, pretty bool) error {
-	var output []byte
-	var err error
-
-	if pretty {
-		output, err = json.MarshalIndent(data, "", "\t")
-	} else {
-		output, err = json.Marshal(data)
-	}
-
-	if err != nil {
-		return fmt.Errorf("Error outputting JSON: %s", err)
-	}
-
-	if string(output) == "null" {
-		fmt.Println("[]")
-	} else {
-		fmt.Println(string(output))
-	}
-
-	return nil
-}
-
 var log *logrus.Logger
 
-func Run(LOG *logrus.Logger, prettyPrint bool, version string) {
-	log = LOG
+func Run(logger *logrus.Logger, prettyPrint bool, version string) {
 	// Initialize the output structure
+	log = logger
 	var data = PluginData{
 		Name:            NAME,
 		PluginVersion:   PLUGIN_VERSION,
@@ -95,42 +70,45 @@ func Run(LOG *logrus.Logger, prettyPrint bool, version string) {
 	}
 	validateConfig(config)
 
-	var metric = getMetric(config)
-
+	metric, err := getMetric(config)
+	if err != nil {
+		data.Status = err.Error()
+	}
 	data.Metrics = append(data.Metrics, metric)
-	fatalIfErr(OutputJSON(data, prettyPrint), "OutputJSON error")
+	fatalIfErr(helpers.OutputJSON(data, prettyPrint), "OutputJSON error")
 }
 
-func getMetric(config MemcachedConfig) map[string]interface{} {
+func getMetric(config MemcachedConfig) (map[string]interface{}, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", config.MemcachedHost, config.MemcachedPort))
-	fatalIfErr(err, fmt.Sprintf("getMetric: Cannot connect to memcached %s:%s", config.MemcachedHost, config.MemcachedPort))
+	if err != nil {
+		log.WithError(err).Error(fmt.Sprintf("getMetric: Cannot connect to memcached %s:%s", config.MemcachedHost, config.MemcachedPort))
+		return nil, err
+	}
 
 	metrics := map[string]interface{}{
-		"event_type":     "DatastoreSample",
-		"provider":       PROVIDER,
-		"memcached.stat": 1,
+		"event_type": "DatastoreSample",
+		"provider":   PROVIDER,
 	}
 
 	for _, command := range strings.Split(config.Commands, ",") {
-		socketReader(conn, strings.TrimSpace(command), metrics)
+		command = strings.TrimSpace(command)
+		log.Debug(fmt.Sprintf("scanResult: command: %s", command))
+		fmt.Fprintf(conn, "%s\r\n", command)
+		scanner := bufio.NewScanner(bufio.NewReader(conn))
+		scanResult(scanner, command, metrics)
 	}
-	return metrics
+	return metrics, nil
 }
 
-func socketReader(conn net.Conn, command string, metrics map[string]interface{}) {
-	log.Debug(fmt.Sprintf("socketReader: command: %s", command))
-	fmt.Fprintf(conn, "%s\r\n", command)
-
-	scanner := bufio.NewScanner(bufio.NewReader(conn))
-	log.Debug(fmt.Sprintf("socketReader: scanner"))
+func scanResult(scanner *bufio.Scanner, command string, metrics map[string]interface{}) {
 	for scanner.Scan() {
-		log.Debug(fmt.Sprintf("socketReader: scanning..."))
+		log.Debug(fmt.Sprintf("scanResult: scanning..."))
 
 		if err := scanner.Err(); err != nil {
 			log.WithError(err).Error("reading scanning connection")
 		}
 		result := strings.TrimSuffix(scanner.Text(), "\r")
-		log.Debug(fmt.Sprintf("socketReader: result: %s", result))
+		log.Debug(fmt.Sprintf("scanResult: result: %s", result))
 		if strings.Compare("END", result) == 0 {
 			break
 		}
