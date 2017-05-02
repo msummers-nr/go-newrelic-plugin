@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	//	"github.com/GannettDigital/go-newrelic-plugin/mysql"
-	"../mysql"
+	"github.com/GannettDigital/go-newrelic-plugin/mysql"
 	status "github.com/GannettDigital/goStateModule"
 	"github.com/spf13/cobra"
 )
