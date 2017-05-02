@@ -22,7 +22,7 @@ func init() {
 		password: "PASSWORD",
 		database: "DATABASE",
 		queries:  "show status; show global variables;",
-		prefixes: "innodb_, galera_",
+		prefixes: "galera_ innodb_ net_ performance_ Galera_ Innodb_ Net_ Performance_",
 	}
 }
 
@@ -160,7 +160,7 @@ func TestFixPrefix(t *testing.T) {
 		{
 			TestDescription: "Should get metric name without error",
 			metric:          "Innodb_buffer_pool_dump_status",
-			result:          "mysql.InnodbBufferPoolDumpStatus",
+			result:          "mysql.Innodb.bufferPoolDumpStatus",
 		},
 	}
 	for _, test := range tests {
